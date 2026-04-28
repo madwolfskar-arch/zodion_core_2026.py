@@ -1,57 +1,76 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
-import base64
 
-# --- CONFIGURACIÓN DE ÉLITE ---
+# 1. Identidad Zodion
 st.set_page_config(page_title="ZODION - Auditoría", layout="wide")
 st.title("🛡️ ZODION SERVICIOS AMBIENTALES")
 
-# --- CONEXIÓN IA ---
+# 2. Conexión IA (Secrets)
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    # Usamos gemini-1.5-flash que es el más rápido y estable para imágenes
     model = genai.GenerativeModel('gemini-1.5-flash')
 except:
-    st.error("Error: Configure su API KEY en los Secrets de la App")
+    st.error("Configure su API KEY en Secrets de Streamlit")
+    st.stop()
 
-# --- OPERACIÓN ---
-col1, col2 = st.columns(2)
-with col1:
-    cliente = st.text_input("Establecimiento")
-    area = st.text_input("Área Inspeccionada")
-    foto = st.file_uploader("Subir Evidencia", type=["jpg", "png", "jpeg"])
+# 3. Interfaz
+cliente = st.text_input("Cliente")
+area = st.text_input("Área")
+foto = st.file_uploader("Evidencia", type=["jpg", "png", "jpeg"])
 
-with col2:
-    if foto:
-        img = Image.open(foto)
-        st.image(img, use_container_width=True)
-        if st.button("ANALIZAR AHORA"):
-            res = model.generate_content(["Analiza riesgos BPM y plagas en esta imagen.", img])
-            st.session_state.analisis = res.text
-
-# --- GENERADOR DE REPORTE INDEPENDIENTE ---
-if 'analisis' in st.session_state:
-    st.markdown("### Resultado del Análisis")
-    st.info(st.session_state.analisis)
+if foto:
+    # Mostramos la imagen al CEO
+    img = Image.open(foto)
+    st.image(img, width=400, caption="Vista previa de evidencia")
     
-    # Creamos un reporte profesional en HTML (Se abre en Chrome/Edge y se guarda como PDF)
-    reporte_final = f"""
-    <div style="font-family: Arial; border: 2px solid #003366; padding: 20px;">
+    if st.button("ANALIZAR AHORA"):
+        with st.spinner("Procesando bajo parámetros Zodion..."):
+            try:
+                # --- SOLUCIÓN AL INVALID ARGUMENT ---
+                # Re-abrimos la imagen para asegurar que el buffer esté limpio
+                img_analisis = Image.open(foto)
+                
+                # Ejecución del motor
+                res = model.generate_content([
+                    "Como experto en BPM de Zodion, analiza los riesgos sanitarios y presencia de plagas en esta imagen de inspección.", 
+                    img_analisis
+                ])
+                
+                if res.text:
+                    st.session_state.analisis = res.text
+                    st.success("Análisis completado exitosamente.")
+                else:
+                    st.warning("La IA no pudo generar una respuesta clara. Intente con otra toma.")
+                    
+            except Exception as e:
+                st.error(f"Falla en el motor de IA: {e}")
+                st.info("Sugerencia: Refresque la página y asegúrese de que la foto no sea demasiado pesada (>5MB).")
+
+# 4. Reporte Independiente (HTML para evitar NameError)
+if 'analisis' in st.session_state:
+    st.markdown("---")
+    st.subheader("Resultados del Análisis Técnico")
+    st.write(st.session_state.analisis)
+    
+    reporte_html = f"""
+    <div style="font-family: Arial; border: 3px solid #003366; padding: 25px;">
         <h1 style="color: #003366; text-align: center;">ZODION SERVICIOS AMBIENTALES</h1>
-        <h3 style="text-align: center;">REPORTE TÉCNICO DE AUDITORÍA</h3>
+        <h2 style="text-align: center;">INFORME DE INSPECCIÓN BPM</h2>
         <hr>
-        <p><b>CLIENTE:</b> {cliente}</p>
-        <p><b>ÁREA:</b> {area}</p>
-        <p><b>INFORME IA:</b></p>
-        <p style="text-align: justify;">{st.session_state.analisis}</p>
+        <p><b>ESTABLECIMIENTO:</b> {cliente}</p>
+        <p><b>ÁREA AUDITADA:</b> {area}</p>
+        <p><b>HALLAZGOS TÉCNICOS:</b></p>
+        <p style="background: #f9f9f9; padding: 10px;">{st.session_state.analisis}</p>
         <hr>
-        <p style="font-size: 12px; color: grey;">Generado por Zodion Core v2026 - Pasto, Nariño</p>
+        <p style="font-size: 11px;">Documento generado por Zodion Core 2026 - Pasto, Colombia.</p>
     </div>
     """
     
     st.download_button(
         label="⬇️ DESCARGAR REPORTE PROFESIONAL",
-        data=reporte_final,
-        file_name=f"Reporte_Zodion_{cliente}.html",
+        data=reporte_html,
+        file_name=f"Zodion_{cliente}.html",
         mime="text/html"
     )
