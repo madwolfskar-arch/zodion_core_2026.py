@@ -1,8 +1,11 @@
 import streamlit as st
-from PIL import Image
-import google.generativeai as genai
-from fpdf2 import FPDF
 import datetime
+from PIL import Image
+try:
+    import google.generativeai as genai
+    from fpdf2 import FPDF
+except ImportError:
+    st.error("Instalando suministros médicos... por favor espere 30 segundos y refresque.")
 
 # --- CONFIGURACIÓN DE MARCA ZODION ---
 st.set_page_config(page_title="ZODION - Sistema de Auditoría BPM", layout="wide", page_icon="🛡️")
