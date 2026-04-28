@@ -1,57 +1,54 @@
 import streamlit as st
-import google.generativeai as genai
-from PIL import Image
+import requests
+import base64
 
-# --- CONFIGURACIÓN DE IDENTIDAD ---
+# 1. Configuración de Marca
 st.set_page_config(page_title="ZODION - Auditoría", layout="wide")
 st.title("🛡️ ZODION SERVICIOS AMBIENTALES")
 
-# --- PROTOCOLO DE CONEXIÓN ---
-try:
-    if "GOOGLE_API_KEY" in st.secrets:
-        KEY = st.secrets["GOOGLE_API_KEY"]
-        genai.configure(api_key=KEY)
-        
-        # CORRECCIÓN 404: Usamos el nombre del modelo compatible con la API actual
-        # Intentamos con 'gemini-1.5-flash-latest' que es la versión de producción
-        model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
-    else:
-        st.warning("⚠️ Configure la clave en los Secrets de Streamlit Cloud.")
-        st.stop()
-except Exception as e:
-    st.error(f"Error de Configuración: {e}")
-    st.stop()
+# 2. Obtener la llave de los Secrets
+API_KEY = st.secrets.get("GOOGLE_API_KEY")
 
-# --- OPERACIÓN TÉCNICA ---
-cliente = st.text_input("Cliente / Establecimiento")
-area = st.text_input("Área de Inspección")
-foto = st.file_uploader("Cargar Evidencia Fotográfica", type=["jpg", "png", "jpeg"])
+# 3. Interfaz de Usuario
+cliente = st.text_input("Establecimiento")
+area = st.text_input("Área Inspeccionada")
+foto = st.file_uploader("Evidencia Fotográfica", type=["jpg", "png", "jpeg"])
 
-if foto:
-    img = Image.open(foto)
-    st.image(img, width=450, caption="Evidencia para análisis")
-    
-    if st.button("EJECUTAR AUDITORÍA IA"):
-        with st.spinner("Consultando protocolos Zodion..."):
-            try:
-                # Análisis de imagen
-                res = model.generate_content([
-                    "Actúa como auditor BPM. Analiza riesgos sanitarios, suciedad y plagas en esta imagen.", 
-                    img
-                ])
-                st.session_state.analisis = res.text
-                st.success("Análisis realizado con éxito.")
-            except Exception as e:
-                # Si el error 404 persiste, intentamos con el modelo Pro por si el Flash está saturado
-                st.error(f"Error técnico de modelo: {e}")
-                st.info("Intentando reconexión con motor de respaldo...")
+if foto and API_KEY:
+    # Preparar la imagen para enviarla sin librerías pesadas
+    bytes_data = foto.getvalue()
+    base64_image = base64.b64encode(bytes_data).decode('utf-8')
+    st.image(bytes_data, width=400)
 
-# --- SALIDA DE REPORTE ---
+    if st.button("EJECUTAR ANÁLISIS DE ÉLITE"):
+        with st.spinner("IA Zodion analizando riesgos..."):
+            # Conexión directa vía API REST (No necesita google-generativeai)
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+            
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": f"Actúa como auditor BPM senior. Analiza riesgos sanitarios, plagas y limpieza en esta área de {area} para el cliente {cliente}."},
+                        {"inline_data": {"mime_type": "image/jpeg", "data": base64_image}}
+                    ]
+                }]
+            }
+            
+            response = requests.post(url, json=payload)
+            
+            if response.status_code == 200:
+                resultado = response.json()
+                texto_analisis = resultado['candidates'][0]['content']['parts'][0]['text']
+                st.session_state.analisis = texto_analisis
+                st.success("Análisis completado.")
+            else:
+                st.error(f"Error de conexión: {response.text}")
+
+# 4. Reporte Final
 if 'analisis' in st.session_state:
     st.markdown("---")
-    st.write("### Informe Técnico:")
     st.info(st.session_state.analisis)
     
-    # Reporte Simplificado
-    reporte = f"ZODION - INFORME: {cliente}\nAREA: {area}\n\nRESULTADOS:\n{st.session_state.analisis}"
-    st.download_button("⬇️ Descargar Reporte", reporte, f"Informe_{cliente}.txt")
+    # Reporte simple que no falla
+    reporte = f"REPORTE ZODION\nCliente: {cliente}\nArea: {area}\n\nAnalisis:\n{st.session_state.analisis}"
+    st.download_button("Descargar Informe Técnico", reporte, f"Informe_Zodion_{cliente}.txt")
