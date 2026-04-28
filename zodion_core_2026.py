@@ -2,75 +2,58 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 
-# 1. Identidad Zodion
+# --- CONFIGURACIÓN DE IDENTIDAD ---
 st.set_page_config(page_title="ZODION - Auditoría", layout="wide")
 st.title("🛡️ ZODION SERVICIOS AMBIENTALES")
 
-# 2. Conexión IA (Secrets)
+# --- PROTOCOLO DE CONEXIÓN SEGURO ---
 try:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    # Usamos gemini-1.5-flash que es el más rápido y estable para imágenes
-    model = genai.GenerativeModel('gemini-1.5-flash')
-except:
-    st.error("Configure su API KEY en Secrets de Streamlit")
+    # Intentamos leer la clave desde los Secrets de Streamlit
+    if "GOOGLE_API_KEY" in st.secrets:
+        KEY = st.secrets["GOOGLE_API_KEY"]
+    else:
+        # Si no está en Secrets, la pedimos manualmente para no detener la operación
+        KEY = st.sidebar.text_input("Introduzca Clave de Respaldo (API KEY):", type="password")
+
+    if KEY:
+        genai.configure(api_key=KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    else:
+        st.warning("⚠️ Esperando configuración de API KEY en Secrets...")
+        st.stop()
+except Exception as e:
+    st.error(f"Error de Configuración: {e}")
     st.stop()
 
-# 3. Interfaz
-cliente = st.text_input("Cliente")
-area = st.text_input("Área")
-foto = st.file_uploader("Evidencia", type=["jpg", "png", "jpeg"])
+# --- OPERACIÓN TÉCNICA ---
+cliente = st.text_input("Cliente / Establecimiento")
+area = st.text_input("Área de Inspección")
+foto = st.file_uploader("Cargar Evidencia Fotográfica", type=["jpg", "png", "jpeg"])
 
 if foto:
-    # Mostramos la imagen al CEO
     img = Image.open(foto)
-    st.image(img, width=400, caption="Vista previa de evidencia")
+    st.image(img, width=450, caption="Evidencia para análisis")
     
-    if st.button("ANALIZAR AHORA"):
-        with st.spinner("Procesando bajo parámetros Zodion..."):
+    if st.button("EJECUTAR AUDITORÍA IA"):
+        with st.spinner("Consultando protocolos Zodion..."):
             try:
-                # --- SOLUCIÓN AL INVALID ARGUMENT ---
-                # Re-abrimos la imagen para asegurar que el buffer esté limpio
-                img_analisis = Image.open(foto)
-                
-                # Ejecución del motor
+                # Análisis forzado de imagen limpia
                 res = model.generate_content([
-                    "Como experto en BPM de Zodion, analiza los riesgos sanitarios y presencia de plagas en esta imagen de inspección.", 
-                    img_analisis
+                    "Analiza esta imagen como auditor de saneamiento. Identifica riesgos BPM, suciedad y plagas.", 
+                    img
                 ])
-                
-                if res.text:
-                    st.session_state.analisis = res.text
-                    st.success("Análisis completado exitosamente.")
-                else:
-                    st.warning("La IA no pudo generar una respuesta clara. Intente con otra toma.")
-                    
+                st.session_state.analisis = res.text
+                st.success("Análisis realizado con éxito.")
             except Exception as e:
-                st.error(f"Falla en el motor de IA: {e}")
-                st.info("Sugerencia: Refresque la página y asegúrese de que la foto no sea demasiado pesada (>5MB).")
+                st.error(f"Error de Validación de Llave: {e}")
+                st.info("Sugerencia: Verifique que la API KEY en Secrets sea la correcta.")
 
-# 4. Reporte Independiente (HTML para evitar NameError)
+# --- SALIDA DE REPORTE ---
 if 'analisis' in st.session_state:
     st.markdown("---")
-    st.subheader("Resultados del Análisis Técnico")
-    st.write(st.session_state.analisis)
+    st.write("### Informe Técnico:")
+    st.info(st.session_state.analisis)
     
-    reporte_html = f"""
-    <div style="font-family: Arial; border: 3px solid #003366; padding: 25px;">
-        <h1 style="color: #003366; text-align: center;">ZODION SERVICIOS AMBIENTALES</h1>
-        <h2 style="text-align: center;">INFORME DE INSPECCIÓN BPM</h2>
-        <hr>
-        <p><b>ESTABLECIMIENTO:</b> {cliente}</p>
-        <p><b>ÁREA AUDITADA:</b> {area}</p>
-        <p><b>HALLAZGOS TÉCNICOS:</b></p>
-        <p style="background: #f9f9f9; padding: 10px;">{st.session_state.analisis}</p>
-        <hr>
-        <p style="font-size: 11px;">Documento generado por Zodion Core 2026 - Pasto, Colombia.</p>
-    </div>
-    """
-    
-    st.download_button(
-        label="⬇️ DESCARGAR REPORTE PROFESIONAL",
-        data=reporte_html,
-        file_name=f"Zodion_{cliente}.html",
-        mime="text/html"
-    )
+    # Generador de reporte directo
+    reporte = f"ZODION - INFORME: {cliente}\nAREA: {area}\n\nRESULTADOS:\n{st.session_state.analisis}"
+    st.download_button("⬇️ Descargar Reporte Técnico", reporte, f"Informe_{cliente}.txt")
