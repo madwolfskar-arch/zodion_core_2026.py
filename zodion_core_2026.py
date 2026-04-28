@@ -12,13 +12,18 @@ except ImportError as e:
 
 # --- INICIO DE INFRAESTRUCTURA ZODION ---
 st.set_page_config(page_title="ZODION - Sistema de Auditoría", layout="wide", page_icon="🛡️")
+# --- CONEXIÓN SEGURA (BYPASS LOCAL) ---
+# En la nube usaremos st.secrets, en local usamos la clave directa
+API_KEY = "AIzaSyD9StlzJy9FXg9epKfSgrWWPz5ZMzgCmNI"
 
-# Conexión Segura con Secrets
-if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("⚠️ Clave de API no detectada en Secrets.")
-    st.stop()
+try:
+    genai.configure(api_key=API_KEY)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+except Exception as e:
+    st.error(f"Error de configuración: {e}")
 
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+
+
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # --- GENERADOR DE REPORTES (MOTOR PDF) ---
